@@ -189,6 +189,23 @@ namespace ProtoBuf.Reflection
 
             var @namespace = ctx.NameNormalizer.GetName(file) ?? "";
 
+            // we split the namespace by . if it is present, and then iterate over each part
+            if (@namespace.Contains("."))
+            {
+                var parts = @namespace.Split('.');
+                // if one of a part contains the word "object" we replace it by "@object"
+                for (var i = 0; i < parts.Length; i++)
+                {
+                    if (parts[i].Equals("object", StringComparison.OrdinalIgnoreCase))
+                    {
+                        parts[i] = "@object";
+                    }
+                }
+                
+                // we join the parts back together with a . and write the namespace
+                @namespace = string.Join(".", parts);
+            }
+            
             if (!string.IsNullOrWhiteSpace(@namespace))
                 WriteNamespaceHeader(ctx, @namespace);
 
@@ -427,6 +444,12 @@ namespace ProtoBuf.Reflection
         /// </summary>
         protected virtual void WriteOneOf(GeneratorContext ctx, OneOfStub stub)
         {
+            var countTotal = stub.OneOf.Parent.Fields.Count(x => x.ShouldSerializeOneofIndex() && x.OneofIndex == stub.Index);
+            if (countTotal == 1)
+            {
+                return;
+            }
+            
             if (ctx.OneOfEnums)
             {
                 int index = stub.Index;

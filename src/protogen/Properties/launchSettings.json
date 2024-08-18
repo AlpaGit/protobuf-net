@@ -2,8 +2,8 @@
   "profiles": {
     "protogen": {
       "commandName": "Project",
-      "commandLineArgs": "--grpc get http://localhost:10042 grpc.reflection.v1alpha.ServerReflection --csharp_out=c:\\Code\\Dump +services=yes",
-      "workingDirectory": "c:\\Code"
+      "commandLineArgs": "--proto_path=./game +listset=yes +names=auto +repeatedaslist=yes --csharp_out=src2 +oneof=enum social.proto",
+      "workingDirectory": "C:\\Users\\Alpa\\Documents\\ProtoFiles"
     }
   }
 }

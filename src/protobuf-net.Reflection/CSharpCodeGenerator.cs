@@ -250,7 +250,7 @@ namespace ProtoBuf.Reflection
             tw.WriteLine(")]");
             WriteOptions(ctx, message.Options);
             tw = ctx.Write($"{GetAccess(GetAccess(message))} partial class {Escape(name)}");
-            tw.Write(" : global::ProtoBuf.IExtensible");
+            tw.Write(" : global::ProtoBuf.IExtensible, IProtoMessage");
             //if (UsePooledMemory(ctx, message))
             //{
             //    tw.Write(", global::System.IDisposable");
@@ -261,6 +261,10 @@ namespace ProtoBuf.Reflection
             {
                 ctx.WriteLine("#error message_set_wire_format is not currently implemented").WriteLine();
             }
+            
+            var @namespace = ctx.NameNormalizer.GetName(ctx.File) ?? "";
+
+            ctx.WriteLine($"public static string TypeUrl => \"{ctx.File.Package}.{message.Name}\";");
 
             ctx.WriteLine($"private global::ProtoBuf.IExtension {FieldPrefix}extensionData;")
                 .WriteLine($"global::ProtoBuf.IExtension global::ProtoBuf.IExtensible.GetExtensionObject(bool createIfMissing)");
@@ -558,24 +562,24 @@ namespace ProtoBuf.Reflection
                     tw.WriteLine(first ? "]" : ")]");
                     if (ctx.Supports(CSharp6))
                     {
-                        ctx.WriteLine($"{GetAccess(GetAccess(field))} global::System.Collections.Generic.Dictionary<{keyTypeName}, {valueTypeName}> {Escape(name)} {{ get; {(allowSet ? "set; " : "")}}} = new global::System.Collections.Generic.Dictionary<{keyTypeName}, {valueTypeName}>();");
+                        ctx.WriteLine($"{GetAccess(GetAccess(field))} required global::System.Collections.Generic.Dictionary<{keyTypeName}, {valueTypeName}> {Escape(name)} {{ get; {(allowSet ? "set; " : "")}}} = new global::System.Collections.Generic.Dictionary<{keyTypeName}, {valueTypeName}>();");
                     }
                     else
                     {
-                        ctx.WriteLine($"{GetAccess(GetAccess(field))} global::System.Collections.Generic.Dictionary<{keyTypeName}, {valueTypeName}> {Escape(name)} {{ get; {(allowSet ? "" : "private ")}set; }}");
+                        ctx.WriteLine($"{GetAccess(GetAccess(field))} required global::System.Collections.Generic.Dictionary<{keyTypeName}, {valueTypeName}> {Escape(name)} {{ get; {(allowSet ? "" : "private ")}set; }}");
                     }
                 }
                 else if (!ctx.RepeatedAsList && UseArray(field))
                 {
-                    ctx.WriteLine($"{GetAccess(GetAccess(field))} {typeName}[] {Escape(name)} {{ get; set; }}");
+                    ctx.WriteLine($"{GetAccess(GetAccess(field))} required {typeName}[] {Escape(name)} {{ get; set; }}");
                 }
                 else if (ctx.Supports(CSharp6))
                 {
-                    ctx.WriteLine($"{GetAccess(GetAccess(field))} global::System.Collections.Generic.List<{typeName}> {Escape(name)} {{ get; {(allowSet ? "set; " : "")}}} = new global::System.Collections.Generic.List<{typeName}>();");
+                    ctx.WriteLine($"{GetAccess(GetAccess(field))} required global::System.Collections.Generic.List<{typeName}> {Escape(name)} {{ get; {(allowSet ? "set; " : "")}}} = new global::System.Collections.Generic.List<{typeName}>();");
                 }
                 else
                 {
-                    ctx.WriteLine($"{GetAccess(GetAccess(field))} global::System.Collections.Generic.List<{typeName}> {Escape(name)} {{ get; {(allowSet ? "" : "private ")}set; }}");
+                    ctx.WriteLine($"{GetAccess(GetAccess(field))} required global::System.Collections.Generic.List<{typeName}> {Escape(name)} {{ get; {(allowSet ? "" : "private ")}set; }}");
                 }
             }
             else if (oneOf is not null)
@@ -672,7 +676,11 @@ namespace ProtoBuf.Reflection
             }
             else
             {
-                tw = ctx.Write($"{GetAccess(GetAccess(field))} {typeName}{(IsNullableType(ctx, field, defaultValue, isOptional) ? "?" : "")} {Escape(name)} {{ get; set; }}");
+                typeName = typeName.Contains(".Any") ? "Any" : typeName;
+                
+                bool isNullable = IsNullableType(ctx, field, defaultValue, isOptional);
+
+                tw = ctx.Write($"{GetAccess(GetAccess(field))} required {typeName}{(isNullable ? "?" : "")} {Escape(name)} {{ get; set; }}");
                 if (!string.IsNullOrWhiteSpace(defaultValue) && ctx.Supports(CSharp6)) tw.Write($" = {defaultValue}{suffix};");
                 tw.WriteLine();
             }
@@ -795,7 +803,9 @@ namespace ProtoBuf.Reflection
         /// </summary>
         protected override void WriteOneOfEnumHeader(GeneratorContext ctx, OneofDescriptorProto oneof, ref object state)
         {
-            ctx.WriteLine().WriteLine($"public enum {ctx.NameNormalizer.GetName(oneof)}{OneOfEnumSuffixEnum}").WriteLine("{").Indent().WriteLine("None = 0,");
+            var name = $"{ctx.NameNormalizer.GetName(oneof)}{OneOfEnumSuffixEnum}";
+
+            ctx.WriteLine().WriteLine($"public enum {name}").WriteLine("{").Indent().WriteLine("None = 0,");
         }
         /// <summary>
         /// Emit the end of an enum declaration for 'oneof' groups
@@ -819,7 +829,14 @@ namespace ProtoBuf.Reflection
         protected override void WriteOneOfDiscriminator(GeneratorContext ctx, OneofDescriptorProto oneof, ref object state)
         {
             var name = ctx.NameNormalizer.GetName(oneof);
+
             var fieldName = GetOneOfFieldName(oneof);
+            
+            if (fieldName == "__pbn___account_id")
+            {
+                
+            }
+            
             if (ctx.Supports(CSharp6))
             {
                 ctx.WriteLine($"public {name}{OneOfEnumSuffixEnum} {name}{OneOfEnumSuffixDiscriminator} => ({name}{OneOfEnumSuffixEnum}){fieldName}.Discriminator;");
@@ -1032,7 +1049,7 @@ namespace ProtoBuf.Reflection
         }
         private bool IsNullableType(GeneratorContext ctx, FieldDescriptorProto field, string defaultValue, bool isOptional)
         {
-            if (!(ctx.IsEnabled("nullablevaluetype") && string.IsNullOrWhiteSpace(defaultValue) && isOptional))
+            if (string.IsNullOrWhiteSpace(defaultValue) && isOptional)
                 return false;
 
             switch (field.type)

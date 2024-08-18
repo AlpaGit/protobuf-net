@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace protogen
@@ -12,7 +13,7 @@ namespace protogen
     internal static class Program
     {
         private static async Task<int> Main(string[] args)
-        {
+        { 
             try
             {
                 string outPath = null; // -o{FILE}, --descriptor_set_out={FILE}
@@ -255,7 +256,15 @@ namespace protogen
         {
             foreach (var file in files)
             {
-                var path = Path.Combine(outPath, file.Name);
+                var fileName = file.Name;
+                
+                // check for upper case
+                if(!char.IsUpper(fileName[0]))
+                {
+                    fileName = SnakeToPascalCase(fileName);
+                }
+                
+                var path = Path.Combine(outPath, fileName);
 
                 var dir = Path.GetDirectoryName(path);
                 if (!Directory.Exists(dir))
@@ -268,7 +277,16 @@ namespace protogen
                 Console.WriteLine($"generated: {path}");
             }
         }
+        
+        public static string SnakeToPascalCase(this string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
 
+            return Regex.Replace(input.ToLower(), @"(?:^|_)(\w)", match => match.Groups[1].Value.ToUpper());
+        }
+
+        
         // with thanks to "Dave": https://stackoverflow.com/a/340454/23354
         public static string MakeRelativePath(string fromPath, string toPath)
         {

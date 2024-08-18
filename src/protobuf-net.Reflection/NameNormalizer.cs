@@ -74,6 +74,12 @@ namespace ProtoBuf.Reflection
                 return Regex.Replace(identifier, "(^|_)([a-z0-9])([a-z0-9]*)",
                     match => match.Groups[2].Value.ToUpperInvariant() + match.Groups[3].Value.ToLowerInvariant());
             }
+            
+            // check if the first character is uppercase
+            if (!char.IsUpper(identifier[0]))
+            {
+                return char.ToUpperInvariant(identifier[0]) + identifier.Substring(1);
+            }
             // just remove underscores - leave their chosen casing alone
             return identifier.Replace("_", "");
         }
@@ -186,12 +192,15 @@ namespace ProtoBuf.Reflection
         public virtual string GetName(FieldDescriptorProto definition)
         {
             var name = definition?.Options?.GetOptions()?.Name;
-            if (!string.IsNullOrWhiteSpace(name)) return name;
+            if (!string.IsNullOrWhiteSpace(name)) 
+                return name;
+            
             var preferred = GetName(definition.Name);
             if (definition.label == FieldDescriptorProto.Label.LabelRepeated)
             {
                 preferred = Pluralize(preferred);
             }
+            
             return GetName(definition.Parent as DescriptorProto, preferred, definition.Name, true);
         }
 
@@ -249,7 +258,8 @@ namespace ProtoBuf.Reflection
             var conflicts = BuildConflicts(parent, includeDescendents);
 
             if (!conflicts.Contains(preferred)) return preferred;
-            if (!conflicts.Contains(fallback)) return fallback;
+            if (!conflicts.Contains($"{preferred}Value")) return $"{preferred}Value";
+            if (!conflicts.Contains($"{fallback}")) return $"{fallback}";
 
             var attempt = preferred + "Value";
             if (!conflicts.Contains(attempt)) return attempt;
