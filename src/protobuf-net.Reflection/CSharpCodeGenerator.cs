@@ -262,12 +262,15 @@ namespace ProtoBuf.Reflection
                 ctx.WriteLine("#error message_set_wire_format is not currently implemented").WriteLine();
             }
             
-            var @namespace = ctx.NameNormalizer.GetName(ctx.File) ?? "";
+            
+            var currType = ctx.File.TypeMapping.FirstOrDefault(x => x.Value == message.Name);
 
-            ctx.WriteLine($"public static string TypeUrl => \"{ctx.File.Package}.{message.Name}\";");
+            ctx.WriteLine(currType.Key != null
+                              ? $"public static string TypeUrl => \"{currType.Key}\";"
+                              : $"public static string TypeUrl => \"{ctx.File.Package}.{message.Name}\";");
 
             ctx.WriteLine($"private global::ProtoBuf.IExtension {FieldPrefix}extensionData;")
-                .WriteLine($"global::ProtoBuf.IExtension global::ProtoBuf.IExtensible.GetExtensionObject(bool createIfMissing)");
+               .WriteLine($"global::ProtoBuf.IExtension global::ProtoBuf.IExtensible.GetExtensionObject(bool createIfMissing)");
 
             if (ctx.Supports(CSharp6))
             {

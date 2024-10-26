@@ -174,6 +174,7 @@ namespace ProtoBuf
         /// </summary>
         /// <typeparam name="T">The type of object to be [de]deserialized by the formatter.</typeparam>
         /// <returns>A new IFormatter to be used during [de]serialization.</returns>
+        [Obsolete("Obsolete")]
         public static System.Runtime.Serialization.IFormatter CreateFormatter<[DynamicallyAccessedMembers(DynamicAccess.ContractType)] T>()
         {
             return RuntimeTypeModel.Default.CreateFormatter(typeof(T));

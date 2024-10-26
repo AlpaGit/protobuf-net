@@ -158,7 +158,9 @@ namespace ProtoBuf.Meta
             }
             return WireType.None;
         }
-        /// <summary>        /// Indicates whether a type is known to the model
+
+        /// <summary>
+        /// Indicates whether a type is known to the model
         /// </summary>
         internal virtual bool IsKnownType<T>(CompatibilityLevel ambient)
             => (TypeHelper<T>.IsReferenceType | !TypeHelper<T>.CanBeNull) // don't claim T?
@@ -1839,6 +1841,7 @@ namespace ProtoBuf.Meta
         /// </summary>
         /// <returns>A new IFormatter to be used during [de]serialization.</returns>
         /// <param name="type">The type of object to be [de]deserialized by the formatter.</param>
+        [Obsolete("Obsolete")]
         public System.Runtime.Serialization.IFormatter CreateFormatter([DynamicallyAccessedMembers(DynamicAccess.ContractType)] Type type)
         {
             return new Formatter(this, type);

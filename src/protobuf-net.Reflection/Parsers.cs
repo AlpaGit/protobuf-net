@@ -90,6 +90,8 @@ namespace Google.Protobuf.Reflection
         internal IFileSystem EffectiveFileSystem => FileSystem ?? DefaultFileSystem.Instance;
 
         internal List<string> importPaths = new List<string>();
+        
+        internal Dictionary<string, string> TypeMapping = new Dictionary<string, string>();
 
         /// <summary>
         /// Adds a file system location for resolving imports
@@ -136,6 +138,7 @@ namespace Google.Protobuf.Reflection
                 Name = name,
                 IncludeInOutput = includeInOutput,
                 DefaultPackage = GetDefaultPackageName(path),
+                TypeMapping = TypeMapping
             };
             Files.Add(descriptor);
 
@@ -191,11 +194,10 @@ namespace Google.Protobuf.Reflection
         }
         private string FindFile(string file)
         {
-            string rel;
             var fileSystem = EffectiveFileSystem;
             foreach (var path in importPaths)
             {
-                rel = Path.Combine(path, file);
+                var rel = Path.Combine(path, file);
                 if (fileSystem.Exists(rel)) return rel;
             }
             return null;
@@ -884,6 +886,7 @@ namespace Google.Protobuf.Reflection
         public bool ShouldSerializeIncludeInOutput() => false;
 
         internal string DefaultPackage { get; set; }
+        public Dictionary<string, string> TypeMapping { get; set; } = new Dictionary<string, string>();
 
         /// <summary>
         /// Indicates whether this file has imports

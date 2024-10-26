@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -17,41 +18,42 @@ namespace protogen
             try
             {
                 string outPath = null; // -o{FILE}, --descriptor_set_out={FILE}
-                bool version = false; // --version
-                bool help = false; // -h, --help
+                var version = false; // --version
+                var help = false; // -h, --help
                 var importPaths = new List<string>(); // -I{PATH}, --proto_path={PATH}
                 var inputFiles = new List<string>(); // {PROTO_FILES} (everything not `-`)
-                bool exec = false;
+                var exec = false;
                 string package = null; // --package=foo
                 string grpcMode = null, grpcUrl = null, grpcService = null;
                 CodeGenerator codegen = null;
-
+                var typeMapping = new Dictionary<string, string>();
+                
                 Dictionary<string, string> options = null;
-                for (int i = 0; i < args.Length; i++)
+                for (var i = 0; i < args.Length; i++)
                 {
                     var arg = args[i];
                     string lhs = arg, rhs = "";
-                    int index = arg.IndexOf('=');
+                    var index = arg.IndexOf('=');
                     if (index > 0)
                     {
-                        lhs = arg.Substring(0, index);
-                        rhs = arg.Substring(index + 1);
+                        lhs = arg[..index];
+                        rhs = arg[(index + 1)..];
                     }
                     else if (arg.StartsWith("-o"))
                     {
                         lhs = "--descriptor_set_out";
-                        rhs = arg.Substring(2);
+                        rhs = arg[2..];
                     }
                     else if (arg.StartsWith("-I"))
                     {
                         lhs = "--proto_path";
-                        rhs = arg.Substring(2);
+                        rhs = arg[2..];
                     }
 
                     if (lhs.StartsWith("+"))
                     {
                         options ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                        options[lhs.Substring(1)] = rhs;
+                        options[lhs[1..]] = rhs;
                         continue;
                     }
 
@@ -68,6 +70,10 @@ namespace protogen
                         case "-h":
                         case "--help":
                             help = true;
+                            break;
+                        case "--mapping":
+                            var mappingJson = await File.ReadAllTextAsync(rhs);
+                            typeMapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson);
                             break;
                         case "--csharp_out":
                             outPath = rhs;
@@ -148,20 +154,21 @@ namespace protogen
                 }
                 else if (inputFiles.Count == 0)
                 {
-                    Console.Error.WriteLine("Missing input file.");
+                    await Console.Error.WriteLineAsync("Missing input file.");
                     return -1;
                 }
                 else if (!exec)
                 {
-                    Console.Error.WriteLine("Missing output directives.");
+                    await Console.Error.WriteLineAsync("Missing output directives.");
                     return -1;
                 }
                 else
                 {
-                    int exitCode = 0;
+                    var exitCode = 0;
                     var set = new FileDescriptorSet
                     {
-                        DefaultPackage = package
+                        DefaultPackage = package,
+                        TypeMapping = typeMapping,
                     };
                     if (importPaths.Count == 0)
                     {
@@ -177,7 +184,7 @@ namespace protogen
                             }
                             else
                             {
-                                Console.Error.WriteLine($"Directory not found: {dir}");
+                                await Console.Error.WriteLineAsync($"Directory not found: {dir}");
                                 exitCode = 1;
                             }
                         }
@@ -189,15 +196,16 @@ namespace protogen
                     if (inputFiles.Count == 1 && importPaths.Count == 1)
                     {
                         SearchOption? searchOption = null;
-                        if (inputFiles[0] == "**/*.proto"
-                            || inputFiles[0] == "**\\*.proto")
+                        switch (inputFiles[0])
                         {
-                            searchOption = SearchOption.AllDirectories;
-                            set.AllowNameOnlyImport = true;
-                        }
-                        else if (inputFiles[0] == "*.proto")
-                        {
-                            searchOption = SearchOption.TopDirectoryOnly;
+                            case "**/*.proto":
+                            case "**\\*.proto":
+                                searchOption = SearchOption.AllDirectories;
+                                set.AllowNameOnlyImport = true;
+                                break;
+                            case "*.proto":
+                                searchOption = SearchOption.TopDirectoryOnly;
+                                break;
                         }
 
                         if (searchOption != null)
@@ -215,7 +223,7 @@ namespace protogen
                     {
                         if (!set.Add(input, true))
                         {
-                            Console.Error.WriteLine($"File not found: {input}");
+                            await Console.Error.WriteLineAsync($"File not found: {input}");
                             exitCode = 1;
                         }
                     }
@@ -226,13 +234,13 @@ namespace protogen
                     foreach (var err in errors)
                     {
                         if (err.IsError) exitCode++;
-                        Console.Error.WriteLine(err.ToString());
+                        await Console.Error.WriteLineAsync(err.ToString());
                     }
                     if (exitCode != 0) return exitCode;
 
                     if (codegen == null)
                     {
-                        using var fds = File.Create(outPath);
+                        await using var fds = File.Create(outPath);
                         Serializer.Serialize(fds, set);
 
                         return 0;
@@ -246,8 +254,8 @@ namespace protogen
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine(ex.Message);
-                Console.Error.WriteLine(ex.StackTrace);
+                await Console.Error.WriteLineAsync(ex.Message);
+                await Console.Error.WriteLineAsync(ex.StackTrace);
                 return -1;
             }
         }
@@ -365,7 +373,9 @@ Parse PROTO_FILES and generate output based on the options given:
   +OPTION=VALUE               Specify a custom OPTION/VALUE pair for the
                               selected code generator.
   --package=PACKAGE           Add a default package (when no package is
-                              specified); can use #FILE# and #DIR# tokens." +
+                              specified); can use #FILE# and #DIR# tokens.
+    --mapping=FILE            Specify a JSON file to map types to custom types.
+" +
 #if GRPC_TOOLS
 @"
   --grpc list URL             List all gRPC service available from URL
